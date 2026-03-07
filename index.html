@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>水無月ゲーム</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@400;700&display=swap');
+        
+        body {
+            font-family: 'Zen+Maru+Gothic', sans-serif;
+            background-color: #f0f4f8;
+            user-select: none;
+            overflow: hidden;
+            touch-action: manipulation;
+        }
+
+        .title-char {
+            display: inline-block;
+            animation: rotateChar 3s ease-in-out infinite;
+        }
+        .title-char:nth-child(2) { animation-delay: 0.2s; }
+        .title-char:nth-child(3) { animation-delay: 0.4s; }
+
+        @keyframes rotateChar {
+            0%, 70% { transform: rotateY(0deg); }
+            85% { transform: rotateY(360deg); }
+            100% { transform: rotateY(360deg); }
+        }
+
+        .panel {
+            perspective: 1000px;
+            width: 100%;
+            max-width: 100px;
+            aspect-ratio: 1 / 1.1;
+            margin: 0 auto;
+        }
+
+        .panel-inner {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            text-align: center;
+            transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+            transform-style: preserve-3d;
+            cursor: pointer;
+        }
+
+        .panel.flipped .panel-inner {
+            transform: rotateY(180deg);
+        }
+
+        .panel-front, .panel-back {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            backface-visibility: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        .panel-front {
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            color: white;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .panel-back {
+            background-color: white;
+            color: #1e3a8a;
+            transform: rotateY(180deg);
+            border: 2px solid #3b82f6;
+        }
+
+        .panel.preview-showing .panel-inner {
+            transform: rotateY(180deg);
+        }
+
+        .set-complete-mark {
+            position: absolute;
+            font-size: 5rem;
+            color: #ef4444;
+            pointer-events: none;
+            z-index: 20;
+            animation: markPop 0.8s ease-out forwards;
+            opacity: 0;
+        }
+
+        @keyframes markPop {
+            0% { transform: scale(0.5); opacity: 0; }
+            50% { transform: scale(1.2); opacity: 1; }
+            100% { transform: scale(1); opacity: 0; }
+        }
+
+        #confetti-canvas {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: 100;
+        }
+
+        #app {
+            height: 92vh; 
+            max-height: 700px;
+        }
+
+        #countdown-container {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(240, 244, 248, 0.6);
+            z-index: 40;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        #countdown-container.active { opacity: 1; }
+        #countdown-text {
+            font-size: 5rem;
+            font-weight: 900;
+            color: #1e40af;
+            text-shadow: 0 4px 10px rgba(255,255,255,0.8);
+            transform: scale(0.5);
+            transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        #countdown-text.pop { transform: scale(1.2); }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen p-2 sm:p-4">
+
+    <canvas id="confetti-canvas"></canvas>
+
+    <div id="app" class="w-full max-w-sm bg-white shadow-2xl rounded-[2rem] overflow-hidden relative flex flex-col border-4 sm:border-8 border-gray-800">
+        
+        <div id="screen-portal" class="flex-1 flex flex-col items-center justify-center p-6 space-y-4 overflow-y-auto">
+            <div class="text-center">
+                <h1 class="text-4xl sm:text-5xl font-bold text-blue-800 tracking-tighter mb-1">
+                    <span class="title-char">水</span><span class="title-char">無</span><span class="title-char">月</span>
+                </h1>
+                <p class="text-blue-500 font-bold tracking-widest text-lg">GAME</p>
+            </div>
+            
+            <div class="flex flex-col w-full space-y-2 sm:space-y-3">
+                <p class="text-center text-xs font-bold text-gray-400 uppercase tracking-widest">レベルを選択</p>
+                <button onclick="startGame(3)" class="bg-green-500 hover:bg-green-600 text-white font-bold py-3 sm:py-4 rounded-xl shadow-lg transition transform active:scale-95 text-lg">
+                    初級 (3枚)
+                </button>
+                <button onclick="startGame(6)" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 sm:py-4 rounded-xl shadow-lg transition transform active:scale-95 text-lg">
+                    中級 (6枚)
+                </button>
+                <button onclick="startGame(9)" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 sm:py-4 rounded-xl shadow-lg transition transform active:scale-95 text-lg">
+                    上級 (9枚)
+                </button>
+            </div>
+
+            <button onclick="showHowTo()" class="text-blue-600 font-bold py-1 border-b-2 border-blue-600 text-sm">
+                遊び方を見る
+            </button>
+        </div>
+
+        <div id="screen-howto" class="hidden flex-1 flex flex-col items-center justify-center p-6 space-y-4 overflow-y-auto">
+            <h2 class="text-2xl font-bold text-blue-800">遊び方</h2>
+            <div class="text-gray-700 space-y-3 text-sm leading-relaxed text-center">
+                <p>ゲーム開始時の<span class="text-blue-600 font-bold">カウントダウン</span>後、<br>
+                一瞬だけパネルの中身が見えます！</p>
+                <p>場所を覚えたら<br>
+                <span class="font-bold text-blue-600 text-xl">水 → 無 → 月</span><br>
+                の順にタップしてください。</p>
+                <p class="text-xs text-red-500 font-bold">※順番を間違えると即終了です</p>
+            </div>
+            <button onclick="showPortal()" class="mt-2 bg-gray-200 text-gray-700 font-bold py-2 px-8 rounded-xl">
+                戻る
+            </button>
+        </div>
+
+        <div id="screen-game" class="hidden flex-1 flex flex-col p-4 sm:p-6 overflow-hidden relative">
+            <div class="flex justify-between items-center mb-4">
+                <div class="bg-blue-50 px-3 py-1 rounded-full border border-blue-200">
+                    <span class="text-[10px] text-blue-400 font-bold uppercase mr-1">Next:</span>
+                    <span id="game-status" class="text-lg font-black text-blue-800">水</span>
+                </div>
+                <div class="text-right">
+                    <span id="level-label" class="text-[10px] text-gray-400 font-bold uppercase block">LEVEL</span>
+                    <span id="match-count" class="text-lg font-bold text-blue-600 leading-none">0 / 0</span>
+                </div>
+            </div>
+            
+            <div id="grid-container" class="flex-1 flex items-start justify-center relative overflow-y-auto">
+                <div id="grid" class="grid gap-2 sm:gap-3 w-full max-h-full content-center">
+                </div>
+                <div id="set-mark-layer" class="absolute inset-0 pointer-events-none flex items-center justify-center"></div>
+                <div id="countdown-container">
+                    <div id="countdown-text">READY</div>
+                </div>
+            </div>
+        </div>
+
+        <div id="overlay" class="hidden absolute inset-0 bg-blue-900/60 backdrop-blur-md flex items-center justify-center z-50">
+            <div class="bg-white p-6 sm:p-10 rounded-[2rem] shadow-2xl text-center w-4/5 transform scale-90 sm:scale-100">
+                <div id="overlay-icon" class="text-6xl sm:text-8xl mb-2 leading-none">⭕️</div>
+                <h3 id="overlay-msg" class="text-xl sm:text-2xl font-bold mb-6 text-gray-800">成功！</h3>
+                <div class="flex flex-col space-y-3">
+                    <button id="btn-restart" class="bg-blue-600 text-white font-bold py-3 sm:py-4 rounded-xl shadow-lg hover:bg-blue-700 text-lg">
+                        もう一度
+                    </button>
+                    <button onclick="showPortal()" class="bg-gray-100 text-gray-700 font-bold py-3 sm:py-4 rounded-xl border border-gray-300 text-base">
+                        最初に戻る
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const canvas = document.getElementById('confetti-canvas');
+        const ctx = canvas.getContext('2d');
+        let particles = [];
+        let confettiActive = false;
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        function playSound(type) {
+            const oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            oscillator.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+
+            if (type === 'success') {
+                oscillator.type = 'sine';
+                oscillator.frequency.setValueAtTime(880, audioCtx.currentTime);
+                oscillator.frequency.exponentialRampToValueAtTime(1320, audioCtx.currentTime + 0.1);
+                gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
+                oscillator.start();
+                oscillator.stop(audioCtx.currentTime + 0.5);
+            } else if (type === 'fail') {
+                oscillator.type = 'sawtooth';
+                oscillator.frequency.setValueAtTime(120, audioCtx.currentTime);
+                gainNode.gain.setValueAtTime(0.2, audioCtx.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.4);
+                oscillator.start();
+                oscillator.stop(audioCtx.currentTime + 0.4);
+            } else if (type === 'tick') {
+                oscillator.type = 'sine';
+                oscillator.frequency.setValueAtTime(660, audioCtx.currentTime);
+                gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+                oscillator.start();
+                oscillator.stop(audioCtx.currentTime + 0.1);
+            } else if (type === 'start') {
+                oscillator.type = 'sine';
+                oscillator.frequency.setValueAtTime(880, audioCtx.currentTime);
+                gainNode.gain.setValueAtTime(0.2, audioCtx.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+                oscillator.start();
+                oscillator.stop(audioCtx.currentTime + 0.3);
+            }
+        }
+
+        let order = ['水', '無', '月'];
+        let currentIndex = 0; 
+        let solvedTriplets = 0; 
+        let targetTriplets = 0;
+        let currentLevelSize = 0;
+        let isLocked = true;
+
+        function showPortal() {
+            stopConfetti(); 
+            hideAll();
+            document.getElementById('screen-portal').classList.remove('hidden');
+            document.getElementById('overlay').classList.add('hidden');
+        }
+
+        function showHowTo() {
+            hideAll();
+            document.getElementById('screen-howto').classList.remove('hidden');
+        }
+
+        function startGame(size) {
+            stopConfetti(); 
+            currentLevelSize = size;
+            targetTriplets = size / 3;
+            hideAll();
+            document.getElementById('screen-game').classList.remove('hidden');
+            document.getElementById('overlay').classList.add('hidden');
+            document.getElementById('btn-restart').onclick = () => startGame(size);
+            initGame(size);
+            startCountdownSequence();
+        }
+
+        async function startCountdownSequence() {
+            isLocked = true;
+            const container = document.getElementById('countdown-container');
+            const text = document.getElementById('countdown-text');
+            container.classList.add('active');
+            const sleep = (ms) => new Promise(res => setTimeout(res, ms));
+            const steps = ["READY", "3", "2", "1", "START!"];
+            for (let i = 0; i < steps.length; i++) {
+                text.innerText = steps[i];
+                text.classList.remove('pop');
+                void text.offsetWidth; 
+                text.classList.add('pop');
+                if (steps[i] === "START!") playSound('start');
+                else playSound('tick');
+                await sleep(800);
+            }
+            container.classList.remove('active');
+            startRandomPreview();
+        }
+
+        function startRandomPreview() {
+            const panels = document.querySelectorAll('.panel');
+            panels.forEach(p => {
+                const delay = Math.random() * 300;
+                setTimeout(() => p.classList.add('preview-showing'), delay);
+            });
+            setTimeout(() => {
+                panels.forEach(p => {
+                    const delay = Math.random() * 200;
+                    setTimeout(() => p.classList.remove('preview-showing'), delay);
+                });
+                setTimeout(() => isLocked = false, 400);
+            }, 1500);
+        }
+
+        function hideAll() {
+            ['screen-portal', 'screen-howto', 'screen-game'].forEach(id => {
+                document.getElementById(id).classList.add('hidden');
+            });
+        }
+
+        function initGame(size) {
+            currentIndex = 0;
+            solvedTriplets = 0;
+            updateUI();
+            const grid = document.getElementById('grid');
+            grid.innerHTML = '';
+            if (size === 3) grid.className = "grid grid-cols-1 gap-4 w-1/2 mx-auto";
+            else if (size === 6) grid.className = "grid grid-cols-2 gap-3 w-full";
+            else grid.className = "grid grid-cols-3 gap-2 w-full";
+            document.getElementById('level-label').innerText = size === 3 ? "初級" : size === 6 ? "中級" : "上級";
+            const items = [];
+            for(let i=0; i<targetTriplets; i++) items.push(...order);
+            const shuffled = items.sort(() => Math.random() - 0.5);
+            shuffled.forEach((val, i) => {
+                const panel = document.createElement('div');
+                panel.className = 'panel';
+                panel.id = `panel-${i}`;
+                panel.innerHTML = `
+                    <div class="panel-inner" onclick="handleTap(${i}, '${val}')">
+                        <div class="panel-front">?</div>
+                        <div class="panel-back font-bold">${val}</div>
+                    </div>
+                `;
+                grid.appendChild(panel);
+            });
+        }
+
+        function updateUI() {
+            document.getElementById('game-status').innerText = order[currentIndex];
+            document.getElementById('match-count').innerText = `${solvedTriplets} / ${targetTriplets}`;
+        }
+
+        function handleTap(index, value) {
+            if (isLocked) return;
+            const panel = document.getElementById(`panel-${index}`);
+            if (panel.classList.contains('flipped')) return;
+            panel.classList.add('flipped');
+            if (value === order[currentIndex]) {
+                currentIndex++;
+                if (currentIndex === 3) {
+                    solvedTriplets++;
+                    currentIndex = 0;
+                    playSound('success');
+                    showSetCompleteMark();
+                    if (solvedTriplets === targetTriplets) {
+                        isLocked = true;
+                        setTimeout(() => {
+                            if (currentLevelSize >= 6) startConfetti();
+                            showResult(true);
+                        }, 600);
+                    } else updateUI();
+                } else updateUI();
+            } else {
+                isLocked = true;
+                playSound('fail');
+                setTimeout(() => showResult(false), 800);
+            }
+        }
+
+        function showSetCompleteMark() {
+            const layer = document.getElementById('set-mark-layer');
+            const mark = document.createElement('div');
+            mark.className = 'set-complete-mark';
+            mark.innerText = '⭕️';
+            layer.appendChild(mark);
+            setTimeout(() => mark.remove(), 1000);
+        }
+
+        function showResult(isWin) {
+            const overlay = document.getElementById('overlay');
+            const icon = document.getElementById('overlay-icon');
+            const msg = document.getElementById('overlay-msg');
+            if (isWin) {
+                icon.innerText = '⭕️';
+                icon.className = 'text-7xl sm:text-8xl mb-4 text-red-500';
+                msg.innerText = currentLevelSize === 9 ? '上級クリア！伝説！' : 'クリア！お見事！';
+            } else {
+                icon.innerText = '❌';
+                icon.className = 'text-7xl sm:text-8xl mb-4 text-blue-600';
+                msg.innerText = '残念！失敗...';
+                stopConfetti();
+            }
+            overlay.classList.remove('hidden');
+        }
+
+        function startConfetti() {
+            particles = [];
+            confettiActive = true;
+            for (let i = 0; i < 150; i++) {
+                particles.push({
+                    x: Math.random() * canvas.width,
+                    y: Math.random() * canvas.height - canvas.height,
+                    size: Math.random() * 8 + 4,
+                    color: `hsl(${Math.random() * 360}, 80%, 60%)`,
+                    speed: Math.random() * 3 + 2,
+                    angle: Math.random() * 6.28
+                });
+            }
+            requestAnimationFrame(updateConfetti);
+        }
+
+        function stopConfetti() {
+            confettiActive = false;
+            particles = [];
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+
+        function updateConfetti() {
+            if (!confettiActive) return;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            particles.forEach(p => {
+                p.y += p.speed;
+                p.angle += 0.05;
+                ctx.fillStyle = p.color;
+                ctx.save();
+                ctx.translate(p.x, p.y);
+                ctx.rotate(p.angle);
+                ctx.fillRect(-p.size/2, -p.size/2, p.size, p.size);
+                ctx.restore();
+            });
+            if (confettiActive) requestAnimationFrame(updateConfetti);
+        }
+    </script>
+</body>
+</html>
