@@ -2,101 +2,419 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>水無月ゲーム</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>水無月ゲーム — 和モダン記憶札遊び</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@600;700;800&family=Zen+Maru+Gothic:wght@500;700;900&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@400;700&display=swap');
-        
+        :root {
+            --bg-deep: #0b132b;
+            --bg-mid: #162244;
+            --bg-accent: #241e4e;
+            --card-surface: rgba(15, 23, 46, 0.78);
+            --gold-soft: #f5d08a;
+            --gold-strong: #d97706;
+            --mizu-main: #0284c7;
+            --mizu-soft: #e0f2fe;
+            --mu-main: #7c3aed;
+            --mu-soft: #f3e8ff;
+            --tsuki-main: #b45309;
+            --tsuki-soft: #fef3c7;
+        }
+
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
         body {
-            font-family: 'Zen+Maru+Gothic', sans-serif;
-            background-color: #f0f4f8;
+            font-family: 'Zen Maru Gothic', 'Hiragino Maru Gothic ProN', sans-serif;
+            background:
+                radial-gradient(circle at 18% 15%, rgba(124, 58, 237, 0.24), transparent 42%),
+                radial-gradient(circle at 84% 18%, rgba(245, 208, 138, 0.18), transparent 36%),
+                radial-gradient(circle at 50% 92%, rgba(14, 165, 233, 0.22), transparent 48%),
+                linear-gradient(155deg, var(--bg-deep) 0%, var(--bg-mid) 52%, var(--bg-accent) 100%);
+            color: #f8fafc;
+            min-height: 100dvh;
+            margin: 0;
             user-select: none;
             overflow: hidden;
             touch-action: manipulation;
         }
 
+        .font-mincho {
+            font-family: 'Shippori Mincho', 'Yu Mincho', serif;
+        }
+
+        /* 背景の穏やかな月光・水面パーティクル装飾 */
+        .ambient-orb {
+            position: fixed;
+            border-radius: 9999px;
+            pointer-events: none;
+            filter: blur(55px);
+            opacity: 0.32;
+            animation: drift 14s ease-in-out infinite alternate;
+            z-index: 0;
+        }
+
+        @keyframes drift {
+            0% { transform: translate(0, 0) scale(1); }
+            100% { transform: translate(18px, -20px) scale(1.08); }
+        }
+
+        /* メインステージカード */
+        #app {
+            position: relative;
+            z-index: 10;
+            width: 100%;
+            max-width: 440px;
+            height: min(94dvh, 760px);
+            background: var(--card-surface);
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
+            border: 1px solid rgba(245, 208, 138, 0.22);
+            box-shadow:
+                0 24px 60px rgba(3, 7, 18, 0.6),
+                inset 0 1px 0 rgba(255, 255, 255, 0.12);
+        }
+
+        /* タイトル文字の優雅な回転＆光彩 */
         .title-char {
             display: inline-block;
-            animation: rotateChar 3s ease-in-out infinite;
+            animation: titleFloat 4.2s ease-in-out infinite;
+            text-shadow: 0 4px 20px rgba(245, 208, 138, 0.35);
         }
-        .title-char:nth-child(2) { animation-delay: 0.2s; }
-        .title-char:nth-child(3) { animation-delay: 0.4s; }
+        .title-char:nth-child(2) { animation-delay: 0.28s; }
+        .title-char:nth-child(3) { animation-delay: 0.56s; }
 
-        @keyframes rotateChar {
-            0%, 70% { transform: rotateY(0deg); }
-            85% { transform: rotateY(360deg); }
-            100% { transform: rotateY(360deg); }
+        @keyframes titleFloat {
+            0%, 62%, 100% { transform: translateY(0) rotateY(0deg); }
+            76% { transform: translateY(-4px) rotateY(180deg); }
+            90% { transform: translateY(0) rotateY(360deg); }
         }
 
+        /* 札（パネル）3Dフリップ */
         .panel {
             perspective: 1000px;
             width: 100%;
-            max-width: 100px;
-            aspect-ratio: 1 / 1.1;
+            aspect-ratio: 1 / 1.12;
             margin: 0 auto;
+            padding: 0;
+            border: none;
+            background: transparent;
+            cursor: pointer;
+            outline: none;
+        }
+
+        .panel:focus-visible .panel-front,
+        .panel:focus-visible .panel-back {
+            box-shadow: 0 0 0 3px var(--gold-soft), 0 8px 20px rgba(0, 0, 0, 0.35);
         }
 
         .panel-inner {
             position: relative;
             width: 100%;
             height: 100%;
-            text-align: center;
-            transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: transform 0.52s cubic-bezier(0.22, 1, 0.36, 1);
             transform-style: preserve-3d;
-            cursor: pointer;
         }
 
-        .panel.flipped .panel-inner {
+        .panel.flipped .panel-inner,
+        .panel.preview-showing .panel-inner,
+        .panel.answer-reveal .panel-inner {
             transform: rotateY(180deg);
         }
 
-        .panel-front, .panel-back {
+        .panel:not(.flipped):not(.preview-showing):not(.answer-reveal):not(.locked-panel):hover .panel-front {
+            transform: translateY(-2px);
+            border-color: rgba(245, 208, 138, 0.65);
+            box-shadow: 0 10px 20px rgba(2, 6, 23, 0.45), 0 0 14px rgba(125, 211, 252, 0.25);
+        }
+
+        .panel:not(.flipped):not(.preview-showing):not(.answer-reveal):not(.locked-panel):active .panel-inner {
+            transform: scale(0.95);
+        }
+
+        .panel-front,
+        .panel-back {
             position: absolute;
-            width: 100%;
-            height: 100%;
+            inset: 0;
             backface-visibility: hidden;
+            -webkit-backface-visibility: hidden;
+            border-radius: 0.9rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s, opacity 0.25s;
+        }
+
+        /* 伏せ面：藍色の和札＋青海波模様 */
+        .panel-front {
+            background-color: #172a54;
+            background-image:
+                radial-gradient(circle at 50% 0%, rgba(125, 211, 252, 0.16), transparent 65%),
+                url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='24' viewBox='0 0 40 24'%3E%3Cg fill='none' stroke='%2393c5fd' stroke-opacity='0.14' stroke-width='1.1'%3E%3Cpath d='M0 24a20 20 0 0 1 40 0M6 24a14 14 0 0 1 28 0M12 24a8 8 0 0 1 16 0'/%3E%3Cpath d='M-20 12a20 20 0 0 1 40 0M-14 12a14 14 0 0 1 28 0M-8 12a8 8 0 0 1 16 0'/%3E%3Cpath d='M20 12a20 20 0 0 1 40 0M26 12a14 14 0 0 1 28 0M32 12a8 8 0 0 1 16 0'/%3E%3C/g%3E%3C/svg%3E");
+            border: 1.5px solid rgba(245, 208, 138, 0.34);
+            box-shadow:
+                0 6px 14px rgba(2, 6, 23, 0.4),
+                inset 0 0 0 3px rgba(15, 23, 46, 0.45);
+        }
+
+        .panel-front-emblem {
+            width: 34%;
+            height: 34%;
+            max-width: 34px;
+            max-height: 34px;
+            opacity: 0.72;
+            color: var(--gold-soft);
+        }
+
+        /* めくり面：和紙ベース */
+        .panel-back {
+            background: linear-gradient(160deg, #fffdf8 0%, #f5f0e6 100%);
+            transform: rotateY(180deg);
+            border: 2px solid rgba(255, 255, 255, 0.8);
+            box-shadow: 0 8px 18px rgba(2, 6, 23, 0.35);
+            position: relative;
+        }
+
+        .panel-back::before {
+            content: '';
+            position: absolute;
+            inset: 4px;
+            border-radius: 0.65rem;
+            border: 1px solid currentColor;
+            opacity: 0.2;
+            pointer-events: none;
+        }
+
+        .panel-back.char-mizu {
+            color: var(--mizu-main);
+            border-color: #38bdf8;
+            background: linear-gradient(160deg, #ffffff 0%, #eff9ff 100%);
+        }
+
+        .panel-back.char-mu {
+            color: var(--mu-main);
+            border-color: #a78bfa;
+            background: linear-gradient(160deg, #ffffff 0%, #f6f0ff 100%);
+        }
+
+        .panel-back.char-tsuki {
+            color: var(--tsuki-main);
+            border-color: #f59e0b;
+            background: linear-gradient(160deg, #fffdf7 0%, #fef4dc 100%);
+        }
+
+        .panel-watermark {
+            position: absolute;
+            inset: 0;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 1.5rem;
-            border-radius: 0.75rem;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            opacity: 0.11;
+            pointer-events: none;
         }
 
-        .panel-front {
-            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-            color: white;
-            border: 2px solid rgba(255, 255, 255, 0.2);
+        .panel-char {
+            position: relative;
+            z-index: 2;
+            line-height: 1;
+            font-weight: 800;
         }
 
-        .panel-back {
-            background-color: white;
-            color: #1e3a8a;
-            transform: rotateY(180deg);
-            border: 2px solid #3b82f6;
+        /* 揃ったセットの札 */
+        .panel.solved .panel-back {
+            box-shadow: 0 0 18px rgba(245, 208, 138, 0.45), 0 4px 10px rgba(0, 0, 0, 0.25);
+            border-color: #eab308;
         }
 
-        .panel.preview-showing .panel-inner {
-            transform: rotateY(180deg);
+        .panel.solved-flash .panel-back {
+            animation: solvedPulse 0.65s ease-out;
         }
 
+        @keyframes solvedPulse {
+            0% { transform: rotateY(180deg) scale(1); filter: brightness(1); }
+            45% { transform: rotateY(180deg) scale(1.07); filter: brightness(1.16); }
+            100% { transform: rotateY(180deg) scale(1); filter: brightness(1); }
+        }
+
+        .solved-badge {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            width: 16px;
+            height: 16px;
+            border-radius: 9999px;
+            background: #eab308;
+            color: #fff;
+            font-size: 10px;
+            font-weight: 900;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transform: scale(0.4);
+            transition: opacity 0.25s, transform 0.25s;
+            z-index: 4;
+        }
+
+        .panel.solved .solved-badge {
+            opacity: 1;
+            transform: scale(1);
+        }
+
+        /* 失敗時演出 */
+        .panel.wrong {
+            animation: wrongShake 0.45s cubic-bezier(0.36, 0.07, 0.19, 0.97);
+        }
+
+        .panel.wrong .panel-back {
+            border-color: #ef4444;
+            background: linear-gradient(160deg, #fff5f5 0%, #fee2e2 100%);
+            box-shadow: 0 0 22px rgba(239, 68, 68, 0.65);
+        }
+
+        @keyframes wrongShake {
+            0%, 100% { transform: translateX(0); }
+            20% { transform: translateX(-7px) rotate(-2deg); }
+            40% { transform: translateX(7px) rotate(2deg); }
+            60% { transform: translateX(-5px) rotate(-1deg); }
+            80% { transform: translateX(5px) rotate(1deg); }
+        }
+
+        /* 答え合わせで開いた未開放パネル */
+        .panel.answer-reveal .panel-back {
+            opacity: 0.72;
+        }
+
+        .panel.answer-target .panel-back {
+            opacity: 1;
+            border-color: #10b981;
+            box-shadow: 0 0 20px rgba(16, 185, 129, 0.75);
+            animation: targetPulse 0.9s ease-in-out infinite alternate;
+        }
+
+        @keyframes targetPulse {
+            from { transform: rotateY(180deg) scale(1); }
+            to { transform: rotateY(180deg) scale(1.04); }
+        }
+
+        .answer-hint-tag {
+            position: absolute;
+            bottom: 4px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #10b981;
+            color: #fff;
+            font-size: 9px;
+            font-weight: 700;
+            padding: 1px 6px;
+            border-radius: 999px;
+            white-space: nowrap;
+            z-index: 5;
+        }
+
+        /* セット完成マーク */
         .set-complete-mark {
             position: absolute;
-            font-size: 5rem;
-            color: #ef4444;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
             pointer-events: none;
-            z-index: 20;
-            animation: markPop 0.8s ease-out forwards;
-            opacity: 0;
+            z-index: 30;
+            animation: markPop 0.85s cubic-bezier(0.16, 1, 0.3, 1) forwards;
         }
 
         @keyframes markPop {
-            0% { transform: scale(0.5); opacity: 0; }
-            50% { transform: scale(1.2); opacity: 1; }
-            100% { transform: scale(1); opacity: 0; }
+            0% { transform: scale(0.45); opacity: 0; }
+            35% { transform: scale(1.12); opacity: 1; }
+            75% { transform: scale(1); opacity: 0.95; }
+            100% { transform: scale(1.18); opacity: 0; }
         }
 
+        /* カウントダウン */
+        #countdown-container {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: rgba(11, 19, 43, 0.62);
+            backdrop-filter: blur(4px);
+            border-radius: 1.25rem;
+            z-index: 40;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.25s;
+        }
+
+        #countdown-container.active {
+            opacity: 1;
+        }
+
+        #countdown-text {
+            font-size: 4.5rem;
+            font-weight: 800;
+            color: var(--gold-soft);
+            text-shadow: 0 0 28px rgba(245, 208, 138, 0.55);
+            transform: scale(0.5);
+            transition: transform 0.22s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        #countdown-text.pop {
+            transform: scale(1.12);
+        }
+
+        /* ステップインジケーター */
+        .step-pill {
+            transition: all 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+
+        .step-pill.active-mizu {
+            background: rgba(2, 132, 199, 0.28);
+            border-color: #38bdf8;
+            color: #e0f2fe;
+            transform: scale(1.12);
+            box-shadow: 0 0 14px rgba(56, 189, 248, 0.4);
+        }
+
+        .step-pill.active-mu {
+            background: rgba(124, 58, 237, 0.3);
+            border-color: #c084fc;
+            color: #f3e8ff;
+            transform: scale(1.12);
+            box-shadow: 0 0 14px rgba(192, 132, 252, 0.45);
+        }
+
+        .step-pill.active-tsuki {
+            background: rgba(217, 119, 6, 0.3);
+            border-color: #fbbf24;
+            color: #fef3c7;
+            transform: scale(1.12);
+            box-shadow: 0 0 14px rgba(251, 191, 36, 0.45);
+        }
+
+        .step-pill.done {
+            background: rgba(234, 179, 8, 0.18);
+            border-color: rgba(234, 179, 8, 0.55);
+            color: #fde68a;
+            opacity: 0.72;
+        }
+
+        .step-pill.pending {
+            background: rgba(255, 255, 255, 0.05);
+            border-color: rgba(255, 255, 255, 0.14);
+            color: rgba(226, 232, 240, 0.45);
+        }
+
+        /* 紙吹雪キャンバス */
         #confetti-canvas {
             position: fixed;
             inset: 0;
@@ -104,366 +422,1131 @@
             z-index: 100;
         }
 
-        #app {
-            height: 92vh; 
-            max-height: 700px;
+        /* レベルカード */
+        .level-btn {
+            position: relative;
+            overflow: hidden;
+            transition: transform 0.18s ease, border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
         }
 
-        #countdown-container {
-            position: absolute;
-            inset: 0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: rgba(240, 244, 248, 0.6);
-            z-index: 40;
-            pointer-events: none;
-            opacity: 0;
-            transition: opacity 0.3s;
+        .level-btn:hover {
+            transform: translateY(-2px);
         }
-        #countdown-container.active { opacity: 1; }
-        #countdown-text {
-            font-size: 5rem;
-            font-weight: 900;
-            color: #1e40af;
-            text-shadow: 0 4px 10px rgba(255,255,255,0.8);
-            transform: scale(0.5);
-            transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+
+        .level-btn:active {
+            transform: scale(0.98);
         }
-        #countdown-text.pop { transform: scale(1.2); }
+
+        /* 新記録バッジ */
+        .new-record-badge {
+            animation: badgeGlow 1.5s ease-in-out infinite alternate;
+        }
+
+        @keyframes badgeGlow {
+            from { box-shadow: 0 0 8px rgba(251, 191, 36, 0.4); }
+            to { box-shadow: 0 0 20px rgba(251, 191, 36, 0.85); }
+        }
+
+        /* 画面切り替えフェード */
+        .screen-fade {
+            animation: screenIn 0.28s ease-out;
+        }
+
+        @keyframes screenIn {
+            from { opacity: 0; transform: translateY(6px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
     </style>
 </head>
-<body class="flex items-center justify-center min-h-screen p-2 sm:p-4">
+<body class="flex items-center justify-center p-2.5 sm:p-4">
 
+    <!-- 背景オーブ -->
+    <div class="ambient-orb" style="width: 280px; height: 280px; top: -60px; left: -50px; background: #4f46e5;"></div>
+    <div class="ambient-orb" style="width: 240px; height: 240px; bottom: -50px; right: -40px; background: #0284c7; animation-delay: -5s;"></div>
+
+    <!-- 紙吹雪キャンバス -->
     <canvas id="confetti-canvas"></canvas>
 
-    <div id="app" class="w-full max-w-sm bg-white shadow-2xl rounded-[2rem] overflow-hidden relative flex flex-col border-4 sm:border-8 border-gray-800">
-        
-        <div id="screen-portal" class="flex-1 flex flex-col items-center justify-center p-6 space-y-4 overflow-y-auto">
-            <div class="text-center">
-                <h1 class="text-4xl sm:text-5xl font-bold text-blue-800 tracking-tighter mb-1">
+    <!-- メインコンテナ -->
+    <main id="app" class="rounded-[1.85rem] overflow-hidden flex flex-col">
+
+        <!-- 常設トップヘッダー -->
+        <header class="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-slate-950/25 shrink-0">
+            <div class="flex items-center gap-2 min-w-0">
+                <button id="btn-nav-back" type="button" onclick="showPortal()" class="hidden items-center gap-1 text-xs font-bold text-slate-200 hover:text-amber-200 bg-white/10 hover:bg-white/15 px-3 py-1.5 rounded-full transition" aria-label="ホームへ戻る">
+                    <span>←</span>
+                    <span>戻る</span>
+                </button>
+                <div id="header-brand" class="flex items-center gap-1.5 text-xs tracking-widest text-amber-200/80 font-medium">
+                    <span aria-hidden="true">🌙</span>
+                    <span>六月・記憶の札遊び</span>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-2">
+                <button id="btn-nav-retry" type="button" onclick="retryCurrentGame()" class="hidden items-center gap-1 text-xs font-bold text-sky-200 hover:text-white bg-sky-500/20 hover:bg-sky-500/30 border border-sky-400/30 px-3 py-1.5 rounded-full transition" aria-label="このレベルをやり直す">
+                    <span>↻</span>
+                    <span>やり直す</span>
+                </button>
+                <button id="btn-mute" type="button" onclick="toggleMute()" class="w-8 h-8 rounded-full flex items-center justify-center bg-white/10 hover:bg-white/20 text-amber-100 transition border border-white/10" aria-label="効果音のオン・オフ切り替え" title="効果音 ON / OFF">
+                    <span id="mute-icon" class="text-sm leading-none">🔊</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- ==================== ホーム画面 ==================== -->
+        <section id="screen-portal" class="screen-fade flex-1 flex flex-col justify-between p-5 sm:p-6 overflow-y-auto">
+            <!-- タイトルロゴ -->
+            <div class="text-center pt-1 pb-2">
+                <div class="inline-flex items-center justify-center mb-1.5 opacity-90">
+                    <svg width="34" height="34" viewBox="0 0 36 36" fill="none" aria-hidden="true">
+                        <path d="M23.5 6.5C18.1 7.2 14 11.8 14 17.4C14 23.5 18.9 28.4 25 28.4C26.5 28.4 27.9 28.1 29.2 27.5C26.9 30.2 23.4 31.9 19.5 31.9C12.3 31.9 6.5 26.1 6.5 18.9C6.5 12.1 11.8 6.5 18.5 6C20.3 5.9 22 6.1 23.5 6.5Z" fill="#f5d08a"/>
+                        <circle cx="26.5" cy="12" r="1.4" fill="#bae6fd"/>
+                        <circle cx="29.5" cy="16.5" r="1" fill="#ddd6fe"/>
+                    </svg>
+                </div>
+                <h1 class="font-mincho text-4xl sm:text-5xl font-extrabold tracking-[0.18em] pl-[0.18em] text-transparent bg-clip-text bg-gradient-to-b from-amber-100 via-amber-200 to-sky-200">
                     <span class="title-char">水</span><span class="title-char">無</span><span class="title-char">月</span>
                 </h1>
-                <p class="text-blue-500 font-bold tracking-widest text-lg">GAME</p>
-            </div>
-            
-            <div class="flex flex-col w-full space-y-2 sm:space-y-3">
-                <p class="text-center text-xs font-bold text-gray-400 uppercase tracking-widest">レベルを選択</p>
-                <button onclick="startGame(3)" class="bg-green-500 hover:bg-green-600 text-white font-bold py-3 sm:py-4 rounded-xl shadow-lg transition transform active:scale-95 text-lg">
-                    初級 (3枚)
-                </button>
-                <button onclick="startGame(6)" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 sm:py-4 rounded-xl shadow-lg transition transform active:scale-95 text-lg">
-                    中級 (6枚)
-                </button>
-                <button onclick="startGame(9)" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 sm:py-4 rounded-xl shadow-lg transition transform active:scale-95 text-lg">
-                    上級 (9枚)
-                </button>
+                <p class="text-[11px] font-bold tracking-[0.35em] text-sky-300/80 mt-1 uppercase">Minazuki Memory</p>
+                <p class="text-xs text-slate-300/80 mt-2">
+                    一瞬の記憶を頼りに <span class="text-sky-300 font-bold">水</span> → <span class="text-violet-300 font-bold">無</span> → <span class="text-amber-300 font-bold">月</span> を辿る
+                </p>
             </div>
 
-            <button onclick="showHowTo()" class="text-blue-600 font-bold py-1 border-b-2 border-blue-600 text-sm">
-                遊び方を見る
+            <!-- 難易度選択リスト -->
+            <div class="flex flex-col gap-2.5 my-2" id="level-list">
+                <!-- JSでベストタイム付きで描画 -->
+            </div>
+
+            <!-- フッター操作 -->
+            <div class="flex items-center justify-center gap-5 pt-2">
+                <button type="button" onclick="showHowTo()" class="text-xs font-bold text-amber-200/90 hover:text-amber-100 border-b border-amber-200/40 hover:border-amber-200 pb-0.5 transition">
+                    遊び方を見る
+                </button>
+                <button id="btn-reset-records" type="button" onclick="resetRecords()" class="text-[11px] text-slate-400 hover:text-rose-300 transition">
+                    記録をリセット
+                </button>
+            </div>
+        </section>
+
+        <!-- ==================== 遊び方画面 ==================== -->
+        <section id="screen-howto" class="hidden screen-fade flex-1 flex flex-col justify-between p-5 sm:p-6 overflow-y-auto">
+            <div>
+                <h2 class="font-mincho text-2xl font-bold text-center text-amber-100 tracking-widest mb-4">遊び方</h2>
+
+                <!-- 札の見本 -->
+                <div class="grid grid-cols-3 gap-2.5 max-w-[240px] mx-auto mb-4">
+                    <div class="rounded-xl bg-gradient-to-b from-white to-sky-50 border-2 border-sky-400 py-2.5 text-center shadow">
+                        <div class="font-mincho text-2xl font-extrabold text-sky-600 leading-none">水</div>
+                        <div class="text-[10px] font-bold text-sky-500 mt-1">1番目</div>
+                    </div>
+                    <div class="rounded-xl bg-gradient-to-b from-white to-violet-50 border-2 border-violet-400 py-2.5 text-center shadow">
+                        <div class="font-mincho text-2xl font-extrabold text-violet-600 leading-none">無</div>
+                        <div class="text-[10px] font-bold text-violet-500 mt-1">2番目</div>
+                    </div>
+                    <div class="rounded-xl bg-gradient-to-b from-amber-50/40 to-amber-100/80 border-2 border-amber-400 py-2.5 text-center shadow">
+                        <div class="font-mincho text-2xl font-extrabold text-amber-700 leading-none">月</div>
+                        <div class="text-[10px] font-bold text-amber-600 mt-1">3番目</div>
+                    </div>
+                </div>
+
+                <!-- 手順カード -->
+                <div class="space-y-2.5 text-xs sm:text-sm text-slate-200">
+                    <div class="flex items-start gap-3 bg-white/5 border border-white/10 rounded-xl p-3">
+                        <span class="shrink-0 w-6 h-6 rounded-full bg-sky-500/25 border border-sky-400/50 text-sky-200 font-bold flex items-center justify-center text-xs">1</span>
+                        <p class="leading-relaxed">カウントダウン後、すべての札が一瞬だけ表になります。ゲージが減り切る前に配置を覚えましょう。</p>
+                    </div>
+                    <div class="flex items-start gap-3 bg-white/5 border border-white/10 rounded-xl p-3">
+                        <span class="shrink-0 w-6 h-6 rounded-full bg-violet-500/25 border border-violet-400/50 text-violet-200 font-bold flex items-center justify-center text-xs">2</span>
+                        <p class="leading-relaxed">札が伏せられたら、<strong class="text-sky-300">水</strong> → <strong class="text-violet-300">無</strong> → <strong class="text-amber-300">月</strong> の順にタップして1セットずつ揃えます。</p>
+                    </div>
+                    <div class="flex items-start gap-3 bg-white/5 border border-white/10 rounded-xl p-3">
+                        <span class="shrink-0 w-6 h-6 rounded-full bg-amber-500/25 border border-amber-400/50 text-amber-200 font-bold flex items-center justify-center text-xs">3</span>
+                        <p class="leading-relaxed">すべてのセットをミスなく揃えるとクリア！順番を間違えると即終了（答え合わせが表示されます）。</p>
+                    </div>
+                </div>
+            </div>
+
+            <button type="button" onclick="showPortal()" class="mt-4 w-full bg-gradient-to-r from-amber-300/90 to-amber-200/90 hover:from-amber-200 hover:to-amber-100 text-slate-900 font-bold py-3 rounded-xl shadow-lg transition active:scale-[0.98]">
+                レベル選択へ戻る
             </button>
-        </div>
+        </section>
 
-        <div id="screen-howto" class="hidden flex-1 flex flex-col items-center justify-center p-6 space-y-4 overflow-y-auto">
-            <h2 class="text-2xl font-bold text-blue-800">遊び方</h2>
-            <div class="text-gray-700 space-y-3 text-sm leading-relaxed text-center">
-                <p>ゲーム開始時の<span class="text-blue-600 font-bold">カウントダウン</span>後、<br>
-                一瞬だけパネルの中身が見えます！</p>
-                <p>場所を覚えたら<br>
-                <span class="font-bold text-blue-600 text-xl">水 → 無 → 月</span><br>
-                の順にタップしてください。</p>
-                <p class="text-xs text-red-500 font-bold">※順番を間違えると即終了です</p>
-            </div>
-            <button onclick="showPortal()" class="mt-2 bg-gray-200 text-gray-700 font-bold py-2 px-8 rounded-xl">
-                戻る
-            </button>
-        </div>
+        <!-- ==================== ゲーム画面 ==================== -->
+        <section id="screen-game" class="hidden screen-fade flex-1 flex flex-col p-4 sm:p-5 overflow-hidden relative">
 
-        <div id="screen-game" class="hidden flex-1 flex flex-col p-4 sm:p-6 overflow-hidden relative">
-            <div class="flex justify-between items-center mb-4">
-                <div class="bg-blue-50 px-3 py-1 rounded-full border border-blue-200">
-                    <span class="text-[10px] text-blue-400 font-bold uppercase mr-1">Next:</span>
-                    <span id="game-status" class="text-lg font-black text-blue-800">水</span>
+            <!-- ステータスHUD -->
+            <div class="flex items-center justify-between gap-2 mb-3 shrink-0">
+                <!-- 3連ステップインジケーター -->
+                <div class="flex items-center gap-1.5" aria-label="次に選ぶ文字">
+                    <div id="step-0" class="step-pill pending font-mincho w-9 h-9 rounded-xl border text-base font-bold flex items-center justify-center">水</div>
+                    <span class="text-slate-500 text-xs">›</span>
+                    <div id="step-1" class="step-pill pending font-mincho w-9 h-9 rounded-xl border text-base font-bold flex items-center justify-center">無</div>
+                    <span class="text-slate-500 text-xs">›</span>
+                    <div id="step-2" class="step-pill pending font-mincho w-9 h-9 rounded-xl border text-base font-bold flex items-center justify-center">月</div>
                 </div>
-                <div class="text-right">
-                    <span id="level-label" class="text-[10px] text-gray-400 font-bold uppercase block">LEVEL</span>
-                    <span id="match-count" class="text-lg font-bold text-blue-600 leading-none">0 / 0</span>
+
+                <!-- タイム＆進捗 -->
+                <div class="flex items-center gap-3 text-right">
+                    <div>
+                        <span class="text-[10px] text-slate-400 font-bold uppercase tracking-wider block leading-none">TIME</span>
+                        <span id="timer-display" class="text-sm sm:text-base font-bold text-amber-200 tabular-nums leading-tight">0.00s</span>
+                    </div>
+                    <div class="pl-2.5 border-l border-white/10">
+                        <span id="level-label" class="text-[10px] text-sky-300 font-bold uppercase tracking-wider block leading-none">LEVEL</span>
+                        <span id="match-count" class="text-sm sm:text-base font-bold text-white tabular-nums leading-tight">0 / 0</span>
+                    </div>
                 </div>
             </div>
-            
-            <div id="grid-container" class="flex-1 flex items-start justify-center relative overflow-y-auto">
-                <div id="grid" class="grid gap-2 sm:gap-3 w-full max-h-full content-center">
+
+            <!-- 記憶ゲージ / ガイドバー（常設でレイアウトズレ防止） -->
+            <div class="mb-3 shrink-0">
+                <div class="flex items-center justify-between text-[11px] mb-1 px-0.5">
+                    <span id="phase-label" class="font-bold text-slate-300">準備中...</span>
+                    <span id="phase-sub" class="text-amber-200/80 font-bold tabular-nums"></span>
                 </div>
+                <div class="h-2 w-full bg-white/10 rounded-full overflow-hidden">
+                    <div id="memory-bar" class="h-full w-0 rounded-full bg-gradient-to-r from-sky-400 via-violet-400 to-amber-300 transition-none"></div>
+                </div>
+            </div>
+
+            <!-- 盤面エリア -->
+            <div id="grid-container" class="flex-1 flex items-center justify-center relative min-h-0">
+                <div id="grid" class="grid w-full items-center justify-items-center"></div>
+
+                <!-- セット完了マーク層 -->
                 <div id="set-mark-layer" class="absolute inset-0 pointer-events-none flex items-center justify-center"></div>
-                <div id="countdown-container">
-                    <div id="countdown-text">READY</div>
-                </div>
-            </div>
-        </div>
 
-        <div id="overlay" class="hidden absolute inset-0 bg-blue-900/60 backdrop-blur-md flex items-center justify-center z-50">
-            <div class="bg-white p-6 sm:p-10 rounded-[2rem] shadow-2xl text-center w-4/5 transform scale-90 sm:scale-100">
-                <div id="overlay-icon" class="text-6xl sm:text-8xl mb-2 leading-none">⭕️</div>
-                <h3 id="overlay-msg" class="text-xl sm:text-2xl font-bold mb-6 text-gray-800">成功！</h3>
-                <div class="flex flex-col space-y-3">
-                    <button id="btn-restart" class="bg-blue-600 text-white font-bold py-3 sm:py-4 rounded-xl shadow-lg hover:bg-blue-700 text-lg">
-                        もう一度
+                <!-- カウントダウン層 -->
+                <div id="countdown-container">
+                    <span id="countdown-sub" class="text-xs font-bold tracking-[0.3em] text-sky-200/80 mb-1 uppercase">Get Ready</span>
+                    <div id="countdown-text" class="font-mincho">3</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==================== リザルトオーバーレイ ==================== -->
+        <div id="overlay" class="hidden absolute inset-0 bg-slate-950/72 backdrop-blur-md flex items-center justify-center p-5 z-50">
+            <div class="screen-fade w-full max-w-[340px] bg-gradient-to-b from-slate-900/95 to-indigo-950/95 border border-amber-200/25 p-6 rounded-[1.75rem] shadow-2xl text-center">
+                <div id="overlay-icon" class="text-5xl mb-2 leading-none">🌕</div>
+                <div id="overlay-badge" class="hidden inline-block new-record-badge bg-gradient-to-r from-amber-400 to-yellow-300 text-slate-950 text-[11px] font-black tracking-widest px-3 py-0.5 rounded-full mb-2">
+                    NEW RECORD!
+                </div>
+                <h3 id="overlay-msg" class="font-mincho text-2xl font-extrabold text-amber-100 mb-1">お見事！</h3>
+                <p id="overlay-sub" class="text-xs text-slate-300 mb-4"></p>
+
+                <!-- リザルトスコア枠 -->
+                <div id="overlay-stats" class="grid grid-cols-2 gap-2.5 bg-white/5 border border-white/10 rounded-2xl p-3 mb-5">
+                    <div>
+                        <div class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">タイム</div>
+                        <div id="result-time" class="text-lg font-bold text-amber-200 tabular-nums">--</div>
+                    </div>
+                    <div class="border-l border-white/10">
+                        <div class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">自己ベスト</div>
+                        <div id="result-best" class="text-lg font-bold text-sky-200 tabular-nums">--</div>
+                    </div>
+                </div>
+
+                <div class="flex flex-col gap-2.5">
+                    <button id="btn-next-level" type="button" class="hidden w-full bg-gradient-to-r from-amber-400 to-amber-300 hover:from-amber-300 hover:to-amber-200 text-slate-950 font-extrabold py-3 rounded-xl shadow-lg transition active:scale-[0.98]">
+                        次のレベルへ挑む
                     </button>
-                    <button onclick="showPortal()" class="bg-gray-100 text-gray-700 font-bold py-3 sm:py-4 rounded-xl border border-gray-300 text-base">
-                        最初に戻る
+                    <button id="btn-restart" type="button" class="w-full bg-gradient-to-r from-sky-500 to-indigo-500 hover:from-sky-400 hover:to-indigo-400 text-white font-bold py-3 rounded-xl shadow-lg transition active:scale-[0.98]">
+                        もう一度挑戦
+                    </button>
+                    <button type="button" onclick="showPortal()" class="w-full bg-white/10 hover:bg-white/15 text-slate-200 font-bold py-2.5 rounded-xl border border-white/10 text-sm transition">
+                        レベル選択へ戻る
                     </button>
                 </div>
             </div>
         </div>
-    </div>
+    </main>
 
     <script>
-        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        const canvas = document.getElementById('confetti-canvas');
-        const ctx = canvas.getContext('2d');
-        let particles = [];
-        let confettiActive = false;
+        /* =========================================================
+           1. 定数・レベル設定
+        ========================================================= */
+        const ORDER = ['水', '無', '月'];
+        const RECORDS_KEY = 'minazuki_records_v1';
+        const MUTE_KEY = 'minazuki_muted_v1';
 
-        function resizeCanvas() {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-        }
-        window.addEventListener('resize', resizeCanvas);
-        resizeCanvas();
-
-        function playSound(type) {
-            const oscillator = audioCtx.createOscillator();
-            const gainNode = audioCtx.createGain();
-            oscillator.connect(gainNode);
-            gainNode.connect(audioCtx.destination);
-
-            if (type === 'success') {
-                oscillator.type = 'sine';
-                oscillator.frequency.setValueAtTime(880, audioCtx.currentTime);
-                oscillator.frequency.exponentialRampToValueAtTime(1320, audioCtx.currentTime + 0.1);
-                gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
-                gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
-                oscillator.start();
-                oscillator.stop(audioCtx.currentTime + 0.5);
-            } else if (type === 'fail') {
-                oscillator.type = 'sawtooth';
-                oscillator.frequency.setValueAtTime(120, audioCtx.currentTime);
-                gainNode.gain.setValueAtTime(0.2, audioCtx.currentTime);
-                gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.4);
-                oscillator.start();
-                oscillator.stop(audioCtx.currentTime + 0.4);
-            } else if (type === 'tick') {
-                oscillator.type = 'sine';
-                oscillator.frequency.setValueAtTime(660, audioCtx.currentTime);
-                gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
-                gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
-                oscillator.start();
-                oscillator.stop(audioCtx.currentTime + 0.1);
-            } else if (type === 'start') {
-                oscillator.type = 'sine';
-                oscillator.frequency.setValueAtTime(880, audioCtx.currentTime);
-                gainNode.gain.setValueAtTime(0.2, audioCtx.currentTime);
-                gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
-                oscillator.start();
-                oscillator.stop(audioCtx.currentTime + 0.3);
+        const LEVELS = [
+            {
+                size: 3,
+                name: '初級',
+                subtitle: '3枚（1セット）',
+                previewMs: 1600,
+                badgeColor: 'from-emerald-500/25 to-teal-500/15 border-emerald-400/35 hover:border-emerald-300/70',
+                tagClass: 'bg-emerald-400/20 text-emerald-200 border-emerald-400/35',
+                winMsg: '初級クリア！良い調子です',
+                confettiCount: 65
+            },
+            {
+                size: 6,
+                name: '中級',
+                subtitle: '6枚（2セット）',
+                previewMs: 2000,
+                badgeColor: 'from-sky-500/25 to-blue-600/15 border-sky-400/35 hover:border-sky-300/70',
+                tagClass: 'bg-sky-400/20 text-sky-200 border-sky-400/35',
+                winMsg: '中級クリア！冴えています',
+                confettiCount: 100
+            },
+            {
+                size: 9,
+                name: '上級',
+                subtitle: '9枚（3セット）',
+                previewMs: 2500,
+                badgeColor: 'from-violet-500/25 to-purple-600/15 border-violet-400/35 hover:border-violet-300/70',
+                tagClass: 'bg-violet-400/20 text-violet-200 border-violet-400/35',
+                winMsg: '上級クリア！見事な記憶力',
+                confettiCount: 140
+            },
+            {
+                size: 12,
+                name: '達人',
+                subtitle: '12枚（4セット）',
+                previewMs: 3000,
+                badgeColor: 'from-amber-500/25 to-orange-600/15 border-amber-400/40 hover:border-amber-300/80',
+                tagClass: 'bg-amber-400/20 text-amber-200 border-amber-400/40',
+                winMsg: '達人制覇！水無月の極み',
+                confettiCount: 190
             }
-        }
+        ];
 
-        let order = ['水', '無', '月'];
-        let currentIndex = 0; 
-        let solvedTriplets = 0; 
+        const CHAR_META = {
+            '水': {
+                cls: 'char-mizu',
+                svg: `<svg width="64%" height="64%" viewBox="0 0 64 64" fill="none"><path d="M32 8C32 8 14 28 14 40C14 50 22 58 32 58C42 58 50 50 50 40C50 28 32 8 32 8Z" fill="currentColor"/></svg>`
+            },
+            '無': {
+                cls: 'char-mu',
+                svg: `<svg width="68%" height="68%" viewBox="0 0 64 64" fill="none"><circle cx="32" cy="32" r="22" stroke="currentColor" stroke-width="5" stroke-dasharray="9 6"/><circle cx="32" cy="32" r="10" fill="currentColor"/></svg>`
+            },
+            '月': {
+                cls: 'char-tsuki',
+                svg: `<svg width="64%" height="64%" viewBox="0 0 64 64" fill="none"><path d="M40 12C30 14 23 23 23 33C23 44 32 53 43 53C46 53 49 52 51 51C47 56 40 59 33 59C20 59 9 48 9 35C9 22 19 12 32 11C35 11 38 11 40 12Z" fill="currentColor"/></svg>`
+            }
+        };
+
+        /* =========================================================
+           2. サウンド管理（Web Audio API）
+        ========================================================= */
+        const Sound = (() => {
+            let ctx = null;
+            let muted = false;
+
+            try {
+                muted = localStorage.getItem(MUTE_KEY) === '1';
+            } catch (_) {}
+
+            function ensureCtx() {
+                if (muted) return null;
+                try {
+                    if (!ctx) {
+                        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                        if (!AudioCtx) return null;
+                        ctx = new AudioCtx();
+                    }
+                    if (ctx.state === 'suspended') {
+                        ctx.resume();
+                    }
+                    return ctx;
+                } catch (_) {
+                    return null;
+                }
+            }
+
+            function playTone(freq, startOffset, duration, type = 'sine', volume = 0.16, endFreq = null) {
+                const audio = ensureCtx();
+                if (!audio) return;
+                const now = audio.currentTime + startOffset;
+                const osc = audio.createOscillator();
+                const gain = audio.createGain();
+                osc.type = type;
+                osc.frequency.setValueAtTime(freq, now);
+                if (endFreq) {
+                    osc.frequency.exponentialRampToValueAtTime(endFreq, now + duration);
+                }
+                gain.gain.setValueAtTime(0.001, now);
+                gain.gain.linearRampToValueAtTime(volume, now + 0.012);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+                osc.connect(gain);
+                gain.connect(audio.destination);
+                osc.start(now);
+                osc.stop(now + duration + 0.02);
+            }
+
+            return {
+                isMuted: () => muted,
+                toggle() {
+                    muted = !muted;
+                    try {
+                        localStorage.setItem(MUTE_KEY, muted ? '1' : '0');
+                    } catch (_) {}
+                    if (!muted) {
+                        playTone(660, 0, 0.09, 'sine', 0.12);
+                    }
+                    return muted;
+                },
+                play(name) {
+                    if (muted) return;
+                    switch (name) {
+                        case 'click':
+                            playTone(540, 0, 0.06, 'sine', 0.08);
+                            break;
+                        case 'tick':
+                            playTone(620, 0, 0.09, 'triangle', 0.11, 520);
+                            break;
+                        case 'reveal':
+                            playTone(523.25, 0, 0.18, 'sine', 0.12);
+                            playTone(659.25, 0.05, 0.22, 'sine', 0.12);
+                            playTone(783.99, 0.1, 0.26, 'sine', 0.11);
+                            break;
+                        case 'hide':
+                            playTone(440, 0, 0.14, 'sine', 0.09, 310);
+                            break;
+                        case 'step0': // 水
+                            playTone(523.25, 0, 0.22, 'sine', 0.15);
+                            playTone(1046.5, 0, 0.16, 'sine', 0.05);
+                            break;
+                        case 'step1': // 無
+                            playTone(659.25, 0, 0.22, 'sine', 0.15);
+                            playTone(1318.5, 0, 0.16, 'sine', 0.05);
+                            break;
+                        case 'step2': // 月（セット完成）
+                            playTone(783.99, 0, 0.34, 'sine', 0.16);
+                            playTone(1046.5, 0.06, 0.42, 'sine', 0.16);
+                            playTone(1567.98, 0.11, 0.38, 'triangle', 0.06);
+                            break;
+                        case 'win': {
+                            // 和風ペンタトニック祝福アルペジオ
+                            const notes = [523.25, 587.33, 659.25, 783.99, 880, 1046.5];
+                            notes.forEach((n, idx) => {
+                                playTone(n, idx * 0.075, 0.42, 'sine', 0.14);
+                            });
+                            break;
+                        }
+                        case 'fail':
+                            playTone(210, 0, 0.28, 'sawtooth', 0.1, 155);
+                            playTone(148, 0.06, 0.36, 'triangle', 0.14, 110);
+                            break;
+                    }
+                }
+            };
+        })();
+
+        /* =========================================================
+           3. 記録管理（localStorage）
+        ========================================================= */
+        const Storage = (() => {
+            function getDefault() {
+                return {
+                    3: { bestTime: null, clears: 0 },
+                    6: { bestTime: null, clears: 0 },
+                    9: { bestTime: null, clears: 0 },
+                    12: { bestTime: null, clears: 0 }
+                };
+            }
+
+            function load() {
+                const base = getDefault();
+                try {
+                    const raw = localStorage.getItem(RECORDS_KEY);
+                    if (!raw) return base;
+                    const parsed = JSON.parse(raw);
+                    LEVELS.forEach(lv => {
+                        if (parsed && parsed[lv.size]) {
+                            base[lv.size] = {
+                                bestTime: typeof parsed[lv.size].bestTime === 'number' ? parsed[lv.size].bestTime : null,
+                                clears: typeof parsed[lv.size].clears === 'number' ? parsed[lv.size].clears : 0
+                            };
+                        }
+                    });
+                } catch (_) {}
+                return base;
+            }
+
+            function save(records) {
+                try {
+                    localStorage.setItem(RECORDS_KEY, JSON.stringify(records));
+                } catch (_) {}
+            }
+
+            function recordClear(size, elapsedSec) {
+                const records = load();
+                const entry = records[size] || { bestTime: null, clears: 0 };
+                entry.clears += 1;
+                let isNewRecord = false;
+                if (entry.bestTime === null || elapsedSec < entry.bestTime) {
+                    entry.bestTime = elapsedSec;
+                    isNewRecord = true;
+                }
+                records[size] = entry;
+                save(records);
+                return { entry, isNewRecord };
+            }
+
+            function clearAll() {
+                try {
+                    localStorage.removeItem(RECORDS_KEY);
+                } catch (_) {}
+            }
+
+            return { load, recordClear, clearAll };
+        })();
+
+        /* =========================================================
+           4. 紙吹雪パーティクル（自然停止対応）
+        ========================================================= */
+        const Confetti = (() => {
+            const canvas = document.getElementById('confetti-canvas');
+            const ctx = canvas.getContext('2d');
+            const palette = ['#f5d08a', '#fbbf24', '#38bdf8', '#c084fc', '#f472b6', '#e0f2fe'];
+            let particles = [];
+            let rafId = null;
+
+            function resize() {
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+            }
+            window.addEventListener('resize', resize);
+            resize();
+
+            function start(count = 110) {
+                stop();
+                particles = [];
+                for (let i = 0; i < count; i++) {
+                    particles.push({
+                        x: Math.random() * canvas.width,
+                        y: -20 - Math.random() * canvas.height * 0.65,
+                        w: Math.random() * 8 + 5,
+                        h: Math.random() * 5 + 3,
+                        color: palette[Math.floor(Math.random() * palette.length)],
+                        vy: Math.random() * 2.4 + 2.0,
+                        vx: (Math.random() - 0.5) * 1.4,
+                        wobble: Math.random() * Math.PI * 2,
+                        wobbleSpeed: Math.random() * 0.08 + 0.03,
+                        angle: Math.random() * Math.PI * 2,
+                        spin: (Math.random() - 0.5) * 0.12,
+                        opacity: Math.random() * 0.3 + 0.7
+                    });
+                }
+                rafId = requestAnimationFrame(tick);
+            }
+
+            function tick() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                let alive = 0;
+
+                for (let i = 0; i < particles.length; i++) {
+                    const p = particles[i];
+                    p.y += p.vy;
+                    p.wobble += p.wobbleSpeed;
+                    p.x += p.vx + Math.sin(p.wobble) * 0.9;
+                    p.angle += p.spin;
+
+                    if (p.y < canvas.height + 24) {
+                        alive++;
+                        ctx.save();
+                        ctx.globalAlpha = p.opacity;
+                        ctx.translate(p.x, p.y);
+                        ctx.rotate(p.angle);
+                        ctx.fillStyle = p.color;
+                        ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+                        ctx.restore();
+                    }
+                }
+
+                if (alive > 0) {
+                    rafId = requestAnimationFrame(tick);
+                } else {
+                    stop();
+                }
+            }
+
+            function stop() {
+                if (rafId !== null) {
+                    cancelAnimationFrame(rafId);
+                    rafId = null;
+                }
+                particles = [];
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+            }
+
+            return { start, stop };
+        })();
+
+        /* =========================================================
+           5. ゲーム状態管理
+        ========================================================= */
+        let sessionId = 0;
+        let currentLevel = LEVELS[0];
+        let currentIndex = 0;
+        let solvedTriplets = 0;
         let targetTriplets = 0;
-        let currentLevelSize = 0;
+        let currentSetPanels = [];
+        let panelValues = [];
         let isLocked = true;
+        let playStartTime = 0;
+        let timerRafId = null;
+        let memoryRafId = null;
 
-        function showPortal() {
-            stopConfetti(); 
-            hideAll();
-            document.getElementById('screen-portal').classList.remove('hidden');
-            document.getElementById('overlay').classList.add('hidden');
-        }
-
-        function showHowTo() {
-            hideAll();
-            document.getElementById('screen-howto').classList.remove('hidden');
-        }
-
-        function startGame(size) {
-            stopConfetti(); 
-            currentLevelSize = size;
-            targetTriplets = size / 3;
-            hideAll();
-            document.getElementById('screen-game').classList.remove('hidden');
-            document.getElementById('overlay').classList.add('hidden');
-            document.getElementById('btn-restart').onclick = () => startGame(size);
-            initGame(size);
-            startCountdownSequence();
-        }
-
-        async function startCountdownSequence() {
-            isLocked = true;
-            const container = document.getElementById('countdown-container');
-            const text = document.getElementById('countdown-text');
-            container.classList.add('active');
-            const sleep = (ms) => new Promise(res => setTimeout(res, ms));
-            const steps = ["READY", "3", "2", "1", "START!"];
-            for (let i = 0; i < steps.length; i++) {
-                text.innerText = steps[i];
-                text.classList.remove('pop');
-                void text.offsetWidth; 
-                text.classList.add('pop');
-                if (steps[i] === "START!") playSound('start');
-                else playSound('tick');
-                await sleep(800);
-            }
-            container.classList.remove('active');
-            startRandomPreview();
-        }
-
-        function startRandomPreview() {
-            const panels = document.querySelectorAll('.panel');
-            panels.forEach(p => {
-                const delay = Math.random() * 300;
-                setTimeout(() => p.classList.add('preview-showing'), delay);
+        function wait(ms, sid) {
+            return new Promise(resolve => {
+                setTimeout(() => resolve(sid === sessionId), ms);
             });
-            setTimeout(() => {
-                panels.forEach(p => {
-                    const delay = Math.random() * 200;
-                    setTimeout(() => p.classList.remove('preview-showing'), delay);
-                });
-                setTimeout(() => isLocked = false, 400);
-            }, 1500);
         }
 
-        function hideAll() {
+        function fisherYatesShuffle(arr) {
+            const copy = arr.slice();
+            for (let i = copy.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [copy[i], copy[j]] = [copy[j], copy[i]];
+            }
+            return copy;
+        }
+
+        function cancelActiveLoops() {
+            if (timerRafId !== null) {
+                cancelAnimationFrame(timerRafId);
+                timerRafId = null;
+            }
+            if (memoryRafId !== null) {
+                cancelAnimationFrame(memoryRafId);
+                memoryRafId = null;
+            }
+        }
+
+        function formatTime(sec) {
+            return `${sec.toFixed(2)}s`;
+        }
+
+        /* =========================================================
+           6. 画面遷移・UI描画
+        ========================================================= */
+        function updateMuteUI() {
+            const muted = Sound.isMuted();
+            document.getElementById('mute-icon').textContent = muted ? '🔇' : '🔊';
+            document.getElementById('btn-mute').setAttribute('aria-pressed', String(muted));
+        }
+
+        function toggleMute() {
+            Sound.toggle();
+            updateMuteUI();
+        }
+
+        function setHeaderMode(mode) {
+            const backBtn = document.getElementById('btn-nav-back');
+            const retryBtn = document.getElementById('btn-nav-retry');
+            const brand = document.getElementById('header-brand');
+
+            if (mode === 'portal') {
+                backBtn.classList.add('hidden');
+                backBtn.classList.remove('inline-flex');
+                retryBtn.classList.add('hidden');
+                retryBtn.classList.remove('inline-flex');
+                brand.classList.remove('hidden');
+            } else if (mode === 'howto') {
+                backBtn.classList.remove('hidden');
+                backBtn.classList.add('inline-flex');
+                retryBtn.classList.add('hidden');
+                retryBtn.classList.remove('inline-flex');
+                brand.classList.add('hidden');
+            } else if (mode === 'game') {
+                backBtn.classList.remove('hidden');
+                backBtn.classList.add('inline-flex');
+                retryBtn.classList.remove('hidden');
+                retryBtn.classList.add('inline-flex');
+                brand.classList.add('hidden');
+            }
+        }
+
+        function hideAllScreens() {
             ['screen-portal', 'screen-howto', 'screen-game'].forEach(id => {
                 document.getElementById(id).classList.add('hidden');
             });
+            document.getElementById('overlay').classList.add('hidden');
+            document.getElementById('countdown-container').classList.remove('active');
         }
 
-        function initGame(size) {
-            currentIndex = 0;
-            solvedTriplets = 0;
-            updateUI();
-            const grid = document.getElementById('grid');
-            grid.innerHTML = '';
-            if (size === 3) grid.className = "grid grid-cols-1 gap-4 w-1/2 mx-auto";
-            else if (size === 6) grid.className = "grid grid-cols-2 gap-3 w-full";
-            else grid.className = "grid grid-cols-3 gap-2 w-full";
-            document.getElementById('level-label').innerText = size === 3 ? "初級" : size === 6 ? "中級" : "上級";
-            const items = [];
-            for(let i=0; i<targetTriplets; i++) items.push(...order);
-            const shuffled = items.sort(() => Math.random() - 0.5);
-            shuffled.forEach((val, i) => {
-                const panel = document.createElement('div');
-                panel.className = 'panel';
-                panel.id = `panel-${i}`;
-                panel.innerHTML = `
-                    <div class="panel-inner" onclick="handleTap(${i}, '${val}')">
-                        <div class="panel-front">?</div>
-                        <div class="panel-back font-bold">${val}</div>
+        function renderLevelButtons() {
+            const records = Storage.load();
+            const container = document.getElementById('level-list');
+            container.innerHTML = '';
+
+            let hasAnyRecord = false;
+
+            LEVELS.forEach(lv => {
+                const rec = records[lv.size];
+                if (rec.clears > 0) hasAnyRecord = true;
+
+                const bestLabel = rec.bestTime !== null
+                    ? `<span class="text-amber-200 font-bold tabular-nums">★ ${formatTime(rec.bestTime)}</span>`
+                    : `<span class="text-slate-400">未クリア</span>`;
+                const clearsLabel = rec.clears > 0
+                    ? `<span class="text-[10px] text-slate-300/80 ml-1.5">(${rec.clears}勝)</span>`
+                    : '';
+
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = `level-btn w-full text-left px-4 py-3 rounded-2xl bg-gradient-to-r ${lv.badgeColor} border flex items-center justify-between shadow-md`;
+                btn.onclick = () => {
+                    Sound.play('click');
+                    startGame(lv.size);
+                };
+                btn.innerHTML = `
+                    <div class="flex items-center gap-3">
+                        <span class="font-mincho text-lg font-extrabold px-2.5 py-1 rounded-xl border ${lv.tagClass}">${lv.name}</span>
+                        <div>
+                            <div class="text-sm font-bold text-white leading-tight">${lv.subtitle}</div>
+                            <div class="text-[11px] text-slate-300/80 mt-0.5">記憶 ${(lv.previewMs / 1000).toFixed(1)}秒</div>
+                        </div>
+                    </div>
+                    <div class="text-right text-xs">
+                        ${bestLabel}${clearsLabel}
                     </div>
                 `;
-                grid.appendChild(panel);
+                container.appendChild(btn);
+            });
+
+            const resetBtn = document.getElementById('btn-reset-records');
+            resetBtn.classList.toggle('hidden', !hasAnyRecord);
+        }
+
+        function showPortal() {
+            sessionId++;
+            cancelActiveLoops();
+            Confetti.stop();
+            isLocked = true;
+            hideAllScreens();
+            renderLevelButtons();
+            setHeaderMode('portal');
+            document.getElementById('screen-portal').classList.remove('hidden');
+        }
+
+        function showHowTo() {
+            Sound.play('click');
+            sessionId++;
+            cancelActiveLoops();
+            Confetti.stop();
+            hideAllScreens();
+            setHeaderMode('howto');
+            document.getElementById('screen-howto').classList.remove('hidden');
+        }
+
+        function resetRecords() {
+            if (!window.confirm('すべての難易度のクリア記録とベストタイムをリセットしますか？')) return;
+            Storage.clearAll();
+            Sound.play('click');
+            renderLevelButtons();
+        }
+
+        function retryCurrentGame() {
+            Sound.play('click');
+            startGame(currentLevel.size);
+        }
+
+        /* =========================================================
+           7. ゲーム本編フロー
+        ========================================================= */
+        function startGame(size) {
+            const levelObj = LEVELS.find(l => l.size === size) || LEVELS[0];
+            currentLevel = levelObj;
+            sessionId++;
+            const mySession = sessionId;
+
+            cancelActiveLoops();
+            Confetti.stop();
+
+            targetTriplets = levelObj.size / 3;
+            currentIndex = 0;
+            solvedTriplets = 0;
+            currentSetPanels = [];
+            isLocked = true;
+
+            hideAllScreens();
+            setHeaderMode('game');
+            document.getElementById('screen-game').classList.remove('hidden');
+            document.getElementById('btn-restart').onclick = () => {
+                Sound.play('click');
+                startGame(size);
+            };
+
+            initBoard(levelObj);
+            updateHUD();
+            document.getElementById('timer-display').textContent = '0.00s';
+            setPhaseBar('まもなく開始...', '', 0);
+
+            runCountdownAndPreview(mySession, levelObj);
+        }
+
+        function initBoard(levelObj) {
+            const grid = document.getElementById('grid');
+            grid.innerHTML = '';
+            document.getElementById('set-mark-layer').innerHTML = '';
+            document.getElementById('level-label').textContent = levelObj.name;
+
+            // 難易度別グリッド設計（どのサイズもスクロールゼロで中央に美しく配置）
+            let gridClasses = 'grid grid-cols-3 w-full items-center justify-items-center ';
+            let maxPanelWidth = '104px';
+            let charSizeClass = 'text-3xl sm:text-4xl';
+
+            if (levelObj.size === 3) {
+                gridClasses += 'gap-3 max-w-[330px]';
+                maxPanelWidth = '104px';
+                charSizeClass = 'text-4xl';
+            } else if (levelObj.size === 6) {
+                gridClasses += 'gap-3 max-w-[330px]';
+                maxPanelWidth = '104px';
+                charSizeClass = 'text-3xl sm:text-4xl';
+            } else if (levelObj.size === 9) {
+                gridClasses += 'gap-2.5 max-w-[320px]';
+                maxPanelWidth = '98px';
+                charSizeClass = 'text-3xl sm:text-4xl';
+            } else {
+                // 達人（12枚 = 3列×4行）
+                gridClasses += 'gap-2 max-w-[280px]';
+                maxPanelWidth = '82px';
+                charSizeClass = 'text-2xl sm:text-3xl';
+            }
+            grid.className = gridClasses;
+
+            const items = [];
+            for (let i = 0; i < targetTriplets; i++) {
+                items.push(...ORDER);
+            }
+            panelValues = fisherYatesShuffle(items);
+
+            panelValues.forEach((val, idx) => {
+                const meta = CHAR_META[val];
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'panel locked-panel';
+                btn.id = `panel-${idx}`;
+                btn.style.maxWidth = maxPanelWidth;
+                btn.setAttribute('aria-label', `札 ${idx + 1}`);
+                btn.onclick = () => handleTap(idx);
+                btn.innerHTML = `
+                    <div class="panel-inner">
+                        <div class="panel-front">
+                            <svg class="panel-front-emblem" viewBox="0 0 36 36" fill="none" aria-hidden="true">
+                                <path d="M18 3L33 18L18 33L3 18L18 3Z" stroke="currentColor" stroke-width="1.6"/>
+                                <path d="M18 9L27 18L18 27L9 18L18 9Z" fill="currentColor" fill-opacity="0.22"/>
+                                <circle cx="18" cy="18" r="2.2" fill="currentColor"/>
+                            </svg>
+                        </div>
+                        <div class="panel-back ${meta.cls}">
+                            <div class="panel-watermark" aria-hidden="true">${meta.svg}</div>
+                            <span class="panel-char font-mincho ${charSizeClass}">${val}</span>
+                            <span class="solved-badge" aria-hidden="true">✓</span>
+                        </div>
+                    </div>
+                `;
+                grid.appendChild(btn);
             });
         }
 
-        function updateUI() {
-            document.getElementById('game-status').innerText = order[currentIndex];
-            document.getElementById('match-count').innerText = `${solvedTriplets} / ${targetTriplets}`;
+        function setPhaseBar(label, sub, percent) {
+            document.getElementById('phase-label').textContent = label;
+            document.getElementById('phase-sub').textContent = sub;
+            const bar = document.getElementById('memory-bar');
+            bar.style.width = `${Math.max(0, Math.min(100, percent))}%`;
         }
 
-        function handleTap(index, value) {
-            if (isLocked) return;
-            const panel = document.getElementById(`panel-${index}`);
-            if (panel.classList.contains('flipped')) return;
-            panel.classList.add('flipped');
-            if (value === order[currentIndex]) {
-                currentIndex++;
-                if (currentIndex === 3) {
-                    solvedTriplets++;
-                    currentIndex = 0;
-                    playSound('success');
-                    showSetCompleteMark();
-                    if (solvedTriplets === targetTriplets) {
-                        isLocked = true;
-                        setTimeout(() => {
-                            if (currentLevelSize >= 6) startConfetti();
-                            showResult(true);
-                        }, 600);
-                    } else updateUI();
-                } else updateUI();
-            } else {
-                isLocked = true;
-                playSound('fail');
-                setTimeout(() => showResult(false), 800);
+        function updateHUD() {
+            document.getElementById('match-count').textContent = `${solvedTriplets} / ${targetTriplets}`;
+
+            const activeClasses = ['active-mizu', 'active-mu', 'active-tsuki'];
+            for (let i = 0; i < 3; i++) {
+                const el = document.getElementById(`step-${i}`);
+                el.classList.remove('active-mizu', 'active-mu', 'active-tsuki', 'done', 'pending');
+                if (solvedTriplets === targetTriplets) {
+                    el.classList.add('done');
+                } else if (i < currentIndex) {
+                    el.classList.add('done');
+                } else if (i === currentIndex) {
+                    el.classList.add(activeClasses[i]);
+                } else {
+                    el.classList.add('pending');
+                }
             }
         }
 
-        function showSetCompleteMark() {
+        async function runCountdownAndPreview(mySession, levelObj) {
+            const container = document.getElementById('countdown-container');
+            const text = document.getElementById('countdown-text');
+            const sub = document.getElementById('countdown-sub');
+
+            container.classList.add('active');
+            sub.textContent = '配置を記憶しよう';
+
+            const steps = ['3', '2', '1'];
+            for (let i = 0; i < steps.length; i++) {
+                if (mySession !== sessionId) return;
+                text.textContent = steps[i];
+                text.classList.remove('pop');
+                void text.offsetWidth;
+                text.classList.add('pop');
+                Sound.play('tick');
+                const ok = await wait(540, mySession);
+                if (!ok) return;
+            }
+
+            container.classList.remove('active');
+            await runPreviewPhase(mySession, levelObj.previewMs);
+        }
+
+        async function runPreviewPhase(mySession, previewMs) {
+            const panels = Array.from(document.querySelectorAll('.panel'));
+            Sound.play('reveal');
+
+            // わずかな時差で優雅にめくれる演出
+            panels.forEach((p, idx) => {
+                setTimeout(() => {
+                    if (mySession === sessionId) p.classList.add('preview-showing');
+                }, idx * 28);
+            });
+
+            // 記憶ゲージを滑らかに減らす
+            const start = performance.now();
+            await new Promise(resolve => {
+                function frame(now) {
+                    if (mySession !== sessionId) {
+                        resolve(false);
+                        return;
+                    }
+                    const elapsed = now - start;
+                    const remain = Math.max(0, previewMs - elapsed);
+                    const pct = (remain / previewMs) * 100;
+                    setPhaseBar('覚えてください！', `${(remain / 1000).toFixed(1)}s`, pct);
+
+                    if (elapsed < previewMs) {
+                        memoryRafId = requestAnimationFrame(frame);
+                    } else {
+                        memoryRafId = null;
+                        resolve(true);
+                    }
+                }
+                memoryRafId = requestAnimationFrame(frame);
+            });
+
+            if (mySession !== sessionId) return;
+
+            // 伏せる
+            Sound.play('hide');
+            panels.forEach((p, idx) => {
+                setTimeout(() => {
+                    if (mySession === sessionId) p.classList.remove('preview-showing');
+                }, idx * 20);
+            });
+
+            const ok = await wait(340, mySession);
+            if (!ok) return;
+
+            // 操作解放＆計測開始
+            panels.forEach(p => p.classList.remove('locked-panel'));
+            isLocked = false;
+            setPhaseBar('水 → 無 → 月 の順にタップ', '', 100);
+            startPlayTimer(mySession);
+        }
+
+        function startPlayTimer(mySession) {
+            playStartTime = performance.now();
+            const timerEl = document.getElementById('timer-display');
+
+            function update(now) {
+                if (mySession !== sessionId || isLocked) {
+                    timerRafId = null;
+                    return;
+                }
+                const sec = (now - playStartTime) / 1000;
+                timerEl.textContent = formatTime(sec);
+                timerRafId = requestAnimationFrame(update);
+            }
+            timerRafId = requestAnimationFrame(update);
+        }
+
+        /* =========================================================
+           8. タップ判定・演出・リザルト
+        ========================================================= */
+        function handleTap(idx) {
+            if (isLocked) return;
+            const panel = document.getElementById(`panel-${idx}`);
+            if (!panel || panel.classList.contains('flipped')) return;
+
+            const value = panelValues[idx];
+            const expected = ORDER[currentIndex];
+            panel.classList.add('flipped');
+
+            if (value === expected) {
+                currentSetPanels.push(panel);
+                Sound.play(`step${currentIndex}`);
+                currentIndex++;
+
+                if (currentIndex === 3) {
+                    // 1セット完成
+                    const completedSet = currentSetPanels.slice();
+                    currentSetPanels = [];
+                    solvedTriplets++;
+                    currentIndex = 0;
+
+                    completedSet.forEach(p => {
+                        p.classList.add('solved', 'solved-flash');
+                    });
+
+                    showSetCompleteMark(solvedTriplets, targetTriplets);
+                    updateHUD();
+
+                    if (solvedTriplets === targetTriplets) {
+                        // 全クリア
+                        isLocked = true;
+                        const elapsedSec = Math.max(0.01, (performance.now() - playStartTime) / 1000);
+                        document.getElementById('timer-display').textContent = formatTime(elapsedSec);
+                        cancelActiveLoops();
+                        setPhaseBar('全セット完成！', formatTime(elapsedSec), 100);
+
+                        const mySession = sessionId;
+                        setTimeout(() => {
+                            if (mySession !== sessionId) return;
+                            Sound.play('win');
+                            Confetti.start(currentLevel.confettiCount);
+                            showResult(true, elapsedSec);
+                        }, 560);
+                    }
+                } else {
+                    updateHUD();
+                }
+            } else {
+                // 不正解 → 揺れ＋答え合わせ演出
+                isLocked = true;
+                const elapsedSec = Math.max(0.01, (performance.now() - playStartTime) / 1000);
+                cancelActiveLoops();
+
+                panel.classList.add('wrong');
+                Sound.play('fail');
+                setPhaseBar(`残念！「${expected}」を探していました（答え合わせ中...）`, '', 0);
+
+                const mySession = sessionId;
+                setTimeout(() => {
+                    if (mySession !== sessionId) return;
+                    revealAnswerBoard(expected);
+                }, 360);
+
+                setTimeout(() => {
+                    if (mySession !== sessionId) return;
+                    showResult(false, elapsedSec, expected, value);
+                }, 1550);
+            }
+        }
+
+        function revealAnswerBoard(expectedChar) {
+            panelValues.forEach((val, idx) => {
+                const p = document.getElementById(`panel-${idx}`);
+                if (!p || p.classList.contains('flipped')) return;
+                p.classList.add('answer-reveal');
+                if (val === expectedChar) {
+                    p.classList.add('answer-target');
+                    const back = p.querySelector('.panel-back');
+                    if (back && !back.querySelector('.answer-hint-tag')) {
+                        const tag = document.createElement('span');
+                        tag.className = 'answer-hint-tag';
+                        tag.textContent = '正解';
+                        back.appendChild(tag);
+                    }
+                }
+            });
+        }
+
+        function showSetCompleteMark(doneCount, totalCount) {
             const layer = document.getElementById('set-mark-layer');
             const mark = document.createElement('div');
             mark.className = 'set-complete-mark';
-            mark.innerText = '⭕️';
+            mark.innerHTML = `
+                <div class="w-24 h-24 rounded-full border-[5px] border-amber-300 bg-slate-950/65 backdrop-blur-sm flex flex-col items-center justify-center shadow-[0_0_30px_rgba(251,191,36,0.55)]">
+                    <span class="font-mincho text-2xl font-extrabold text-amber-200 leading-none">水無月</span>
+                    <span class="text-[11px] font-bold text-sky-200 mt-1">${doneCount} / ${totalCount}</span>
+                </div>
+            `;
             layer.appendChild(mark);
-            setTimeout(() => mark.remove(), 1000);
+            setTimeout(() => mark.remove(), 900);
         }
 
-        function showResult(isWin) {
+        function showResult(isWin, elapsedSec, expectedChar = '', pickedChar = '') {
             const overlay = document.getElementById('overlay');
             const icon = document.getElementById('overlay-icon');
+            const badge = document.getElementById('overlay-badge');
             const msg = document.getElementById('overlay-msg');
+            const sub = document.getElementById('overlay-sub');
+            const resultTime = document.getElementById('result-time');
+            const resultBest = document.getElementById('result-best');
+            const nextBtn = document.getElementById('btn-next-level');
+            const restartBtn = document.getElementById('btn-restart');
+
+            badge.classList.add('hidden');
+            nextBtn.classList.add('hidden');
+
+            const records = Storage.load();
+
             if (isWin) {
-                icon.innerText = '⭕️';
-                icon.className = 'text-7xl sm:text-8xl mb-4 text-red-500';
-                msg.innerText = currentLevelSize === 9 ? '上級クリア！伝説！' : 'クリア！お見事！';
+                const { entry, isNewRecord } = Storage.recordClear(currentLevel.size, elapsedSec);
+                icon.textContent = currentLevel.size === 12 ? '👑' : '🌕';
+                msg.textContent = currentLevel.winMsg;
+                sub.textContent = `${currentLevel.name}（${currentLevel.subtitle}）を見事制覇！`;
+                resultTime.textContent = formatTime(elapsedSec);
+                resultBest.textContent = formatTime(entry.bestTime);
+
+                if (isNewRecord) {
+                    badge.classList.remove('hidden');
+                }
+
+                // 次のレベルボタン
+                const currentIdx = LEVELS.findIndex(l => l.size === currentLevel.size);
+                if (currentIdx >= 0 && currentIdx < LEVELS.length - 1) {
+                    const nextLv = LEVELS[currentIdx + 1];
+                    nextBtn.textContent = `次のレベル「${nextLv.name} (${nextLv.size}枚)」へ`;
+                    nextBtn.onclick = () => {
+                        Sound.play('click');
+                        startGame(nextLv.size);
+                    };
+                    nextBtn.classList.remove('hidden');
+                }
+                restartBtn.textContent = 'もう一度記録に挑む';
             } else {
-                icon.innerText = '❌';
-                icon.className = 'text-7xl sm:text-8xl mb-4 text-blue-600';
-                msg.innerText = '残念！失敗...';
-                stopConfetti();
+                const rec = records[currentLevel.size];
+                icon.textContent = '🌧️';
+                msg.textContent = '惜しい！失敗...';
+                sub.textContent = `次は「${expectedChar}」でしたが「${pickedChar}」をめくりました`;
+                resultTime.textContent = `${solvedTriplets} / ${targetTriplets} 組`;
+                resultBest.textContent = rec.bestTime !== null ? formatTime(rec.bestTime) : '--';
+                restartBtn.textContent = 'すぐにリトライ';
             }
+
             overlay.classList.remove('hidden');
         }
 
-        function startConfetti() {
-            particles = [];
-            confettiActive = true;
-            for (let i = 0; i < 150; i++) {
-                particles.push({
-                    x: Math.random() * canvas.width,
-                    y: Math.random() * canvas.height - canvas.height,
-                    size: Math.random() * 8 + 4,
-                    color: `hsl(${Math.random() * 360}, 80%, 60%)`,
-                    speed: Math.random() * 3 + 2,
-                    angle: Math.random() * 6.28
-                });
+        /* =========================================================
+           9. キーボードショートカット・初期化
+        ========================================================= */
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                const portalHidden = document.getElementById('screen-portal').classList.contains('hidden');
+                if (portalHidden) {
+                    Sound.play('click');
+                    showPortal();
+                }
+            } else if (e.key === 'Enter' || e.key === ' ') {
+                const overlayVisible = !document.getElementById('overlay').classList.contains('hidden');
+                if (overlayVisible && document.activeElement === document.body) {
+                    e.preventDefault();
+                    Sound.play('click');
+                    startGame(currentLevel.size);
+                }
             }
-            requestAnimationFrame(updateConfetti);
-        }
+        });
 
-        function stopConfetti() {
-            confettiActive = false;
-            particles = [];
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-        }
-
-        function updateConfetti() {
-            if (!confettiActive) return;
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            particles.forEach(p => {
-                p.y += p.speed;
-                p.angle += 0.05;
-                ctx.fillStyle = p.color;
-                ctx.save();
-                ctx.translate(p.x, p.y);
-                ctx.rotate(p.angle);
-                ctx.fillRect(-p.size/2, -p.size/2, p.size, p.size);
-                ctx.restore();
-            });
-            if (confettiActive) requestAnimationFrame(updateConfetti);
-        }
+        updateMuteUI();
+        renderLevelButtons();
     </script>
 </body>
 </html>
